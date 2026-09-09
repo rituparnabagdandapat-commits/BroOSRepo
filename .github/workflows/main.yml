@@ -5,30 +5,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
-      - run: |
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
+      - name: Build
+        run: |
           mkdir -p iso/boot/grub
-         echo "section .multiboot" > k.asm
-          echo "align 4" >> k.asm
-          echo "dd 0x1BADB002" >> k.asm
-          echo "dd 0" >> k.asm
-          echo "dd -0x1BADB002" >> k.asm
-          echo "section .text" >> k.asm
-          echo "global _start" >> k.asm
-          echo "_start:" >> k.asm
-          echo "mov esp, 0x90000" >> k.asm
-          echo "mov byte [0xB8000], 'B'" >> k.asm
-          echo "mov byte [0xB8001], 14" >> k.asm
-          echo "mov byte [0xB8002], 'R'" >> k.asm
-          echo "mov byte [0xB8003], 14" >> k.asm
-          echo "mov byte [0xB8004], 'O'" >> k.asm
-          echo "mov byte [0xB8005], 14" >> k.asm
-          echo "mov byte [0xB8006], 'S'" >> k.asm
-          echo "mov byte [0xB8007], 14" >> k.asm
-          echo "cli" >> k.asm
-          echo "hlt" >> k.asm
-          echo "jmp $-2" >> k.asm
-          nasm -f elf32 k.asm -o iso/boot/kernel.bin
+          cat > kernel.asm <<'EOF'
+          section.multiboot
+          align 4
+            dd 0x1BADB002
+            dd 0
+            dd -0x1BADB002
+          section.text
+          global _start
+          _start:
+            mov esp, 0x90000
+            mov dword [0xB8000], 0x0E420E42
+            mov dword [0xB8004], 0x0E520E52
+            mov dword [0xB8008], 0x0E4F0E4F
+            cli
+            hlt
+            jmp $-2
+          EOF
+          cat > linker.ld <<'EOF'
+          ENTRY(_start)
+          SECTIONS {. = 1M;.multiboot : { *(.multiboot) }.text : { *(.text) } }
+          EOF
+          nasm -f elf32 kernel.asm -o kernel.o
+          ld -m elf_i386 -T linker.ld -o iso/boot/kernel.bin kernel.o
           echo 'set timeout=0' > iso/boot/grub/grub.cfg
           echo 'menuentry "BroOS" { multiboot /boot/kernel.bin }' >> iso/boot/grub/grub.cfg
           grub-mkrescue -o BroOS.iso iso
@@ -36,3 +40,4 @@ jobs:
         with:
           name: BroOS-ISO
           path: BroOS.iso
+          

@@ -8,12 +8,12 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
       - run: |
           mkdir -p iso/boot/grub
-          echo "section.multiboot" > k.asm
+         echo "section .multiboot" > k.asm
           echo "align 4" >> k.asm
           echo "dd 0x1BADB002" >> k.asm
           echo "dd 0" >> k.asm
           echo "dd -0x1BADB002" >> k.asm
-          echo "section.text" >> k.asm
+          echo "section .text" >> k.asm
           echo "global _start" >> k.asm
           echo "_start:" >> k.asm
           echo "mov esp, 0x90000" >> k.asm

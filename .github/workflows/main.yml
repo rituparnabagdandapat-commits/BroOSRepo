@@ -8,13 +8,31 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
       - run: |
           mkdir -p iso/boot/grub
-          printf 'section.multiboot\nalign 4\ndd 0x1BADB002\n dd 0\n dd -0x1BADB002\nsection.text\nglobal _start\n_start:\nmov esp,0x90000\nmov dword [0xB8000],0x0F420F42\nmov dword [0xB8004],0x0F4F0F72\nmov dword [0xB8008],0x0F530F6F\ncli\nhlt\n' > k.asm
-          nasm -f elf32 k.asm -o k.o
-          ld -m elf_i386 -T <(echo 'ENTRY(_start) SECTIONS{.=1M;.multiboot:{*(.multiboot)}.text:{*(.text)}}') -o iso/boot/kernel.bin k.o
-          echo -e 'set timeout=0\nmenuentry "BroOS"{multiboot /boot/kernel.bin}' > iso/boot/grub/grub.cfg
+          echo "section.multiboot" > k.asm
+          echo "align 4" >> k.asm
+          echo "dd 0x1BADB002" >> k.asm
+          echo "dd 0" >> k.asm
+          echo "dd -0x1BADB002" >> k.asm
+          echo "section.text" >> k.asm
+          echo "global _start" >> k.asm
+          echo "_start:" >> k.asm
+          echo "mov esp, 0x90000" >> k.asm
+          echo "mov byte [0xB8000], 'B'" >> k.asm
+          echo "mov byte [0xB8001], 14" >> k.asm
+          echo "mov byte [0xB8002], 'R'" >> k.asm
+          echo "mov byte [0xB8003], 14" >> k.asm
+          echo "mov byte [0xB8004], 'O'" >> k.asm
+          echo "mov byte [0xB8005], 14" >> k.asm
+          echo "mov byte [0xB8006], 'S'" >> k.asm
+          echo "mov byte [0xB8007], 14" >> k.asm
+          echo "cli" >> k.asm
+          echo "hlt" >> k.asm
+          echo "jmp $-2" >> k.asm
+          nasm -f elf32 k.asm -o iso/boot/kernel.bin
+          echo 'set timeout=0' > iso/boot/grub/grub.cfg
+          echo 'menuentry "BroOS" { multiboot /boot/kernel.bin }' >> iso/boot/grub/grub.cfg
           grub-mkrescue -o BroOS.iso iso
       - uses: actions/upload-artifact@v4
         with:
           name: BroOS-ISO
           path: BroOS.iso
-          

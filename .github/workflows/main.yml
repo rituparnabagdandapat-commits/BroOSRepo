@@ -1,0 +1,59 @@
+name: Build ISO
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools binutils
+      - run: |
+          mkdir -p iso/boot/grub
+          cat > kernel.asm <<'EOF'
+          section.multiboot
+          align 4
+              dd 0x1BADB002
+              dd 0x00
+              dd -(0x1BADB002)
+          section.text
+          global _start
+          _start:
+              mov esp, stack_top
+              mov esi, hello
+              mov ebx, 0xB8000
+         .print:
+              lodsb
+              test al, al
+              jz.halt
+              mov ah, 0x0E
+              mov [ebx], ax
+              add ebx, 2
+              jmp.print
+         .halt:
+              cli
+              hlt
+              jmp.halt
+          hello db "BroOS WORKS!!", 0
+          section.bss
+          align 16
+          stack_bottom:
+              resb 16384
+          stack_top:
+          EOF
+          cat > linker.ld <<'EOF'
+          ENTRY(_start)
+          SECTIONS {
+             . = 1M;
+             .multiboot : { *(.multiboot) }
+             .text : { *(.text) }
+             .bss : { *(.bss) }
+          }
+          EOF
+          nasm -f elf32 kernel.asm -o kernel.o
+          ld -m elf_i386 -T linker.ld -o iso/boot/kernel.bin kernel.o
+          echo 'set timeout=0
+          menuentry "BroOS" { multiboot /boot/kernel.bin }' > iso/boot/grub/grub.cfg
+          grub-mkrescue -o BroOS.iso iso
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BroOS-ISO
+          path: BroOS.iso

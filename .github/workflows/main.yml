@@ -1,43 +1,62 @@
-name: Build ISO
+name: Build BroOS ISO
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install tools
-        run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
-      - name: Build
-        run: |
-          mkdir -p iso/boot/grub
-          cat > kernel.asm <<'EOF'
-          section.multiboot
-          align 4
-            dd 0x1BADB002
-            dd 0
-            dd -0x1BADB002
-          section.text
-          global _start
-          _start:
-            mov esp, 0x90000
-            mov dword [0xB8000], 0x0E420E42
-            mov dword [0xB8004], 0x0E520E52
-            mov dword [0xB8008], 0x0E4F0E4F
-            cli
-            hlt
-            jmp $-2
-          EOF
-          cat > linker.ld <<'EOF'
-          ENTRY(_start)
-          SECTIONS {. = 1M;.multiboot : { *(.multiboot) }.text : { *(.text) } }
-          EOF
-          nasm -f elf32 kernel.asm -o kernel.o
-          ld -m elf_i386 -T linker.ld -o iso/boot/kernel.bin kernel.o
-          echo 'set timeout=0' > iso/boot/grub/grub.cfg
-          echo 'menuentry "BroOS" { multiboot /boot/kernel.bin }' >> iso/boot/grub/grub.cfg
-          grub-mkrescue -o BroOS.iso iso
-      - uses: actions/upload-artifact@v4
-        with:
-          name: BroOS-ISO
-          path: BroOS.iso
-          
+    - uses: actions/checkout@v4
+    - run: sudo apt-get update && sudo apt-get install -y nasm grub-pc-bin xorriso mtools
+    - run: |
+        cat > kernel.asm <<'EOF'
+        section.multiboot
+        align 4
+          dd 0x1BADB002
+          dd 0
+          dd -0x1BADB002
+        section.text
+        global _start
+        _start:
+          mov esp, 0x90000
+          mov esi, msg
+          mov edi, 0xB8000
+          mov ah, 0x0E
+       .loop:
+          lodsb
+          test al, al
+          jz.halt
+          stosw
+          jmp.loop
+       .halt:
+          cli
+          hlt
+          jmp.halt
+        section.rodata
+        msg db "BROS - JACKPOT!!! BroOS by Rituparna yeah yeah yeah!", 0
+        EOF
+        cat > linker.ld <<'EOF'
+        ENTRY(_start)
+        SECTIONS {
+         . = 1M;
+         .text : { *(.multiboot) *(.text) }
+         .rodata : { *(.rodata) }
+         .bss : { *(.bss) }
+        }
+        EOF
+        cat > grub.cfg <<'EOF'
+        set timeout=0
+        set default=0
+        menuentry "BroOS" {
+          multiboot /boot/kernel.bin
+          boot
+        }
+        EOF
+        nasm -f elf32 kernel.asm -o kernel.o
+        ld -m elf_i386 -T linker.ld -o kernel.bin kernel.o
+        mkdir -p iso/boot/grub
+        mv kernel.bin iso/boot/
+        mv grub.cfg iso/boot/grub/
+        grub-mkrescue -o BroOS.iso iso
+    - uses: actions/upload-artifact@v4
+      with:
+        name: BroOS-ISO
+        path: BroOS.iso
